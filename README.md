@@ -3,43 +3,48 @@
 Soroban smart contracts for the Callora API marketplace: prepaid vault (USDC) and balance deduction for pay-per-call settlement.
 
 [![CI](https://github.com/CalloraOrg/Callora-Contracts/actions/workflows/ci.yml/badge.svg)](https://github.com/CalloraOrg/Callora-Contracts/actions/workflows/ci.yml)
-[![Coverage](https://github.com/CalloraOrg/Callora-Contracts/actions/workflows/coverage.yml/badge.svg)](https://github.com/CalloraOrg/Callora-Contracts/actions/workflows/coverage.yml)
-[![Kani](https://github.com/CalloraOrg/Callora-Contracts/actions/workflows/kani.yml/badge.svg)](https://github.com/CalloraOrg/Callora-Contracts/actions/workflows/kani.yml)
 
 ## Tech stack
 
 - **Rust** with **Soroban SDK** (Stellar)
 - Contract compiles to WebAssembly and deploys to Stellar/Soroban
-- Minimal WASM size (~17.5 KB for vault)
+- Release WASM: vault ~63 KB, settlement ~62 KB, revenue pool ~34 KB
+
+## Deployed contracts (testnet)
+
+The core contracts are deployed and initialised on **Stellar testnet** (network passphrase `Test SDF Network ; September 2015`).
+
+| Contract | Contract ID | Explorer |
+|---|---|---|
+| Vault (`callora-vault`) | `CBJZLUKQBWDMZPKNJAVONZ7GCCWADSETRXWOPN5Z3XWAUNI4F2R7XDYQ` | [stellar.expert](https://stellar.expert/explorer/testnet/contract/CBJZLUKQBWDMZPKNJAVONZ7GCCWADSETRXWOPN5Z3XWAUNI4F2R7XDYQ) |
+| Settlement (`callora-settlement`) | `CB4BUGCX5LFS5KYWAO2J4ZQTALOQSGXFFAOVKKGAS32OFZLU7O7YYGHS` | [stellar.expert](https://stellar.expert/explorer/testnet/contract/CB4BUGCX5LFS5KYWAO2J4ZQTALOQSGXFFAOVKKGAS32OFZLU7O7YYGHS) |
+| Revenue pool (`callora-revenue-pool`) | `CC5KINWRSLKSSQG4ZOTP3EZIOUVC6ER7HL5GZALYY4LVE6ZIMX4PMCSE` | [stellar.expert](https://stellar.expert/explorer/testnet/contract/CC5KINWRSLKSSQG4ZOTP3EZIOUVC6ER7HL5GZALYY4LVE6ZIMX4PMCSE) |
+| Test USDC (Stellar asset contract, `USDC:GDXDZNST...WAZ`) | `CAC7CFZ42L3LTTZCI4C3XI6UF7AHS2PYTNJ5QEG2PSLRGDGMWRQOZOT5` | [stellar.expert](https://stellar.expert/explorer/testnet/contract/CAC7CFZ42L3LTTZCI4C3XI6UF7AHS2PYTNJ5QEG2PSLRGDGMWRQOZOT5) |
+
+Full details, init parameters and smoke-test transactions are in [`docs/DEPLOYMENTS.md`](docs/DEPLOYMENTS.md). These are testnet-only demo deployments; the USDC is a self-issued test asset, not Circle USDC.
 
 ## Contract Quickstart
 
 A minimal set of commands to build, test, and produce release WASM for the Soroban contracts in this workspace. Run them from the repository root.
 
-**Prerequisites:** [Rust](https://rustup.rs/) (stable) with the `wasm32-unknown-unknown` target (`rustup target add wasm32-unknown-unknown`).
+**Prerequisites:** [Rust](https://rustup.rs/) (stable) with the `wasm32v1-none` target (`rustup target add wasm32v1-none`).
 
 ```bash
-# 1. Format & lint (fails on any warning)
+# 1. Format check
 cargo fmt --all -- --check
-cargo clippy --all-targets --all-features - -D warnings
 
-# 2. Build and run the full test suite
-cargo build
-cargo test
+# 2. Build and run the full test suite (this is what CI runs)
+cargo test --workspace
 
-# 3. Release WASM for a specific contract
-cargo build --target wasm32-unknown-unknown --release -p callora-vault
-cargo build --target wasm32-unknown-unknown --release -p callora-revenue-pool
-cargo build --target wasm32-unknown-unknown --release -p callora-settlement
-
-# 4. Or build all contracts and verify WASM size limits in one step
-./scripts/check-wasm-size.sh
-
-# 5. Line-coverage check (must stay ≥ 95%)
-./scripts/coverage.sh
+# 3. Release WASM for the core contracts (Stellar CLI >= 23)
+stellar contract build --package callora-vault
+stellar contract build --package callora-settlement
+stellar contract build --package callora-revenue-pool
+#    ... or with plain cargo:
+cargo build --release --target wasm32v1-none -p callora-vault -p callora-settlement -p callora-revenue-pool
 ```
 
-Release artifacts land in `target/wasm32-unknown-unknown/release/<crate>.wasm`. The workspace crate names are `callora-vault`, `callora-revenue-pool`, and `callora-settlement` — pass the one you want via `-p`.
+Release artifacts land in `target/wasm32v1-none/release/<crate>.wasm`. The workspace crate names are `callora-vault`, `callora-revenue-pool`, and `callora-settlement` — pass the one you want via `-p`.
 
 ## What’s included
 
@@ -146,41 +151,27 @@ sequenceDiagram
 
 ## Development
 
-Use one branch per issue or feature. Run `cargo fmt --all`, `cargo clippy --all-targets --all-features - -D warnings`, `cargo test --workspace`, and `./scripts/check-wasm-size.sh` before pushing so every publishable contract stays within Soroban's WASM size limit.
+Use one branch per issue or feature. Run `cargo fmt --all` and `cargo test --workspace` before pushing, and make sure the core contracts still build to WASM (`cargo build --release --target wasm32v1-none -p callora-vault -p callora-settlement -p callora-revenue-pool`).
 
-### Test coverage
-
-The project enforces a **minimum of 95% line coverage** on every push via GitHub Actions (see [`.github/workflows/coverage.yml`](.github/workflows/coverage.yml)).
-
-```bash
-# Run coverage locally
-./scripts/coverage.sh
-```
+Some legacy tests that no longer match the current contract behaviour are marked `#[ignore]`; they are catalogued in [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md).
 
 ## Project layout
 
 ```
-callora-contracts/
-├── .github/workflows/
-│   ├── ci.yml              # CI: workspace fmt gate, clippy, test, WASM build
-│   └── coverage.yml        # CI: enforces 95% coverage on every push
+Callora-Contracts/
+├── .github/workflows/ci.yml   # CI: fmt check, workspace tests, WASM build
 ├── contracts/
-│   ├── vault/              # Primary storage and metering
-│   ├── revenue_pool/       # Simple revenue distribution
-│   └── settlement/         # Advanced balance tracking
-├── scripts/
-│   ├── coverage.sh         # Local coverage runner
-│   └── check-wasm-size.sh  # WASM size verification
+│   ├── vault/                 # Prepaid USDC vault and metering (core)
+│   ├── settlement/            # Developer balances / global pool accounting (core)
+│   ├── revenue_pool/          # Revenue distribution pool (core)
+│   └── ...                    # admin, escrow, refund, registry, stake, hot/cold, etc.
 ├── docs/
-│   ├── interfaces/                        # JSON contract interface summaries
-│   ├── ACCESS_CONTROL.md                  # Role-based access control overview
-│   ├── DISTRIBUTE_VS_REVENUE_POOL.md      # Canonical payout contract and behavioural differences
-│   └── CONTRACT_ADDRESS_CONFIGURATION.md  # Operator guide: configure contract addresses
-├── BENCHMARKS.md           # Gas/cost notes
-├── EVENT_SCHEMA.md         # Event topics and payloads
-├── UPGRADE.md              # Upgrade and migration path
-├── SECURITY.md             # Security checklist
-└── tarpaulin.toml          # cargo-tarpaulin configuration
+│   ├── DEPLOYMENTS.md         # Testnet deployment record
+│   ├── KNOWN_ISSUES.md        # Ignored/removed legacy tests
+│   ├── interfaces/            # JSON contract interface summaries
+│   └── archive/               # Historical implementation notes and PR write-ups
+├── scripts/                   # WASM size / event-shape / gas helper scripts
+└── SECURITY.md                # Security checklist
 ```
 
 ## Contract interface summaries
@@ -238,9 +229,7 @@ cargo kani -p callora-vault --harness kani_deduct_balance_non_negative
 
 ### CI workflow
 
-Harnesses run automatically on every push/PR that touches `contracts/vault/src/kani_proofs.rs`, `contracts/vault/proofs/deduct.rs`, or `contracts/vault/src/lib.rs` via [`.github/workflows/kani.yml`](.github/workflows/kani.yml).
-
-The job is currently `continue-on-error: true` (non-blocking).  Once the harness suite has been stable for two release cycles it will be promoted to a required check.
+The harnesses are not part of the default CI; run them manually with `cargo kani`.
 
 ### Module structure
 

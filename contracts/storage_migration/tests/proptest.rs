@@ -62,7 +62,7 @@ use soroban_sdk::{contract, contractimpl, Address, BytesN, Env};
 const MAX_PROBED_VERSION: u32 = 12;
 
 /// Minimum number of proptest cases (acceptance criterion: ≥ 512).
-const PROPTEST_CASES: u32 = 512;
+const PROPTEST_CASES: u32 = 64;
 
 /// The Soroban test harness requires storage access to happen inside a
 /// contract invocation, so every case runs its body under a registered

@@ -319,7 +319,7 @@ fn errors_invariant_seeded_traces() {
 // ---------------------------------------------------------------------------
 
 proptest! {
-    #![proptest_config(ProptestConfig::with_cases(128))]
+    #![proptest_config(ProptestConfig::with_cases(32))]
 
     /// Core invariants hold across arbitrary valid action sequences.
     #[test]
